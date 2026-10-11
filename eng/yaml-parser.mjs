@@ -32,6 +32,8 @@ function skipsAsBundledAsset(filePath) {
   }
 }
 
+const BUILD_OUTPUT_DIRECTORIES = new Set(["bin", "obj"]);
+
 /**
  * Parse frontmatter from a markdown file using vfile-matter
  * Works with any markdown file that has YAML frontmatter (agents, prompts, instructions)
@@ -113,31 +115,6 @@ function extractMcpServers(filePath) {
 }
 
 /**
- * Extract full MCP server configs from an agent file
- * @param {string} filePath - Path to the agent file
- * @returns {Array<{name:string,type?:string,command?:string,args?:string[],url?:string,headers?:object}>}
- */
-function extractMcpServerConfigs(filePath) {
-  const metadata = extractAgentMetadata(filePath);
-  if (!metadata || !metadata.mcpServers) return [];
-  return Object.entries(metadata.mcpServers).map(([name, cfg]) => {
-    // Ensure we don't mutate original cfg
-    const copy = { ...cfg };
-    return {
-      name,
-      type: typeof copy.type === "string" ? copy.type : undefined,
-      command: typeof copy.command === "string" ? copy.command : undefined,
-      args: Array.isArray(copy.args) ? copy.args : undefined,
-      url: typeof copy.url === "string" ? copy.url : undefined,
-      headers:
-        typeof copy.headers === "object" && copy.headers !== null
-          ? copy.headers
-          : undefined,
-    };
-  });
-}
-
-/**
  * Parse SKILL.md frontmatter and list bundled assets in a skill folder
  * @param {string} skillPath - Path to skill folder
  * @returns {object|null} Skill metadata with name, description, and assets array
@@ -168,8 +145,12 @@ function parseSkillMetadata(skillPath) {
         entries.forEach((entry) => {
           const filePath = path.join(dirPath, entry.name);
           if (entry.isDirectory()) {
+            if (BUILD_OUTPUT_DIRECTORIES.has(entry.name)) return;
             arrayOfFiles = getAllFiles(filePath, arrayOfFiles);
-          } else if (!entry.isSymbolicLink() || !skipsAsBundledAsset(filePath)) {
+          } else if (
+            !entry.isSymbolicLink() ||
+            !skipsAsBundledAsset(filePath)
+          ) {
             const relativePath = path.relative(skillPath, filePath);
             if (relativePath !== "SKILL.md") {
               // Normalize path separators to forward slashes for cross-platform consistency
@@ -245,7 +226,10 @@ function parseHookMetadata(hookPath) {
           const filePath = path.join(dirPath, entry.name);
           if (entry.isDirectory()) {
             arrayOfFiles = getAllFiles(filePath, arrayOfFiles);
-          } else if (!entry.isSymbolicLink() || !skipsAsBundledAsset(filePath)) {
+          } else if (
+            !entry.isSymbolicLink() ||
+            !skipsAsBundledAsset(filePath)
+          ) {
             const relativePath = path.relative(hookPath, filePath);
             if (relativePath !== "README.md") {
               // Normalize path separators to forward slashes for cross-platform consistency
@@ -334,11 +318,10 @@ function parseYamlFile(filePath) {
 
 export {
   extractAgentMetadata,
-  extractMcpServerConfigs,
   extractMcpServers,
   parseFrontmatter,
-  parseSkillMetadata,
   parseHookMetadata,
+  parseSkillMetadata,
   parseWorkflowMetadata,
   parseYamlFile,
   safeFileOperation,
